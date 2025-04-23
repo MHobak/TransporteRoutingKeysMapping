@@ -7,17 +7,33 @@ const { getLineFromFile } = require('./readfile');
 const sendersReport = path.join(__dirname, 'files', 'MapeoServiciosQueEnvianMensajes.csv');
 const sendersRoutesReport = path.join(__dirname, 'files', 'MapeoRoutingKeysEnProyectos.csv');
 const servicesProjects = 'MapeoProyectosServicios.json';
+const rabbitServicesMapFile = 'rabbirtMqServicesMap.json';
 const rabbitQueues = path.join(__dirname, 'files/rabbit_mq-cluster-server-0.mq-cluster-nodes.default_2025-3-18.json');
+const generatedFilesPath = 'C:\\GRAM\\OneDrive - MRP TECHNOLOGY, S. DE R.L. DE C.V\\MRP_MHOBAK\\Proyectos\\Transporte\\RabbitMQMap\\generated\\';
 
 //Obtain the method calls from the services that send messages
 let senderServices = [];
 let routingkeys = [];
 let servicesProjectMap = [];
-
+let bindings = [];
 const main = async () => {
 
     //read a json file
     servicesProjectMap = readJsonFile(servicesProjects);
+    const rabbitQueuesData =  readJsonFile(rabbitQueues);
+    const rabbitServicesMap =  readJsonFile(rabbitServicesMapFile);
+    
+
+    bindings = rabbitQueuesData.bindings || [];
+    const rabbitBindingsServices = bindings.map(item => { 
+        const service = rabbitServicesMap.find(service => service.RabbitMQServiceName === item.destination.split('.')[0]);
+        return {
+            Destination: item.destination,
+            RoutingKey: item.routing_key,
+            RebbitServiceName: item.destination.split('.')[0],
+            Service: service ? service.ServiceName : null
+        }
+    });
 
     // 1. Read the CSV file with the senders report
     senderServices = await getCsvContent(sendersReport);
@@ -124,9 +140,11 @@ const main = async () => {
     //const notFound = servicesMap.filter(item => item.RoutingKeyEnumValue == null && item.SenderCodeLine.includes('notificationsService.SendAsync'));
 
     // 6. Generate a JSON file with the services map and the not found routing keys
-    generateJsonFile(validMap, 'genereted_files/servicesMap.json');
-    generateJsonFile(exceptions, 'genereted_files/exceptions.json');
-    generateJsonFile(notFound, 'genereted_files/notFound.json');
+    generateJsonFile(rabbitBindingsServices, generatedFilesPath + 'listeners.json');
+    generateJsonFile(validMap, generatedFilesPath + 'servicesMap.json');
+    generateJsonFile(exceptions, generatedFilesPath + 'exceptions.json');
+    generateJsonFile(notFound, generatedFilesPath + 'notFound.json');
+    generateJsonFile(notFound, generatedFilesPath + 'notFound.json');
 
     console.log('Total:', servicesMap.length);
     console.log('Valid:', validMap.length);
